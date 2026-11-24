@@ -1,4 +1,3 @@
-import 'skeleton_loader.dart';
 import 'r2_media_library_picker_modal.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -6,7 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import '../services/exercises_backend_service.dart' hide ExerciseCategoryModel;
 import '../services/exercise_category_backend_service.dart';
 import '../services/category_backend_service.dart';
-import 'upload_progress_overlay.dart';
+import 'exercise_media_widget.dart';
+import 'exercise_detail_modal.dart';
 
 class FitnessExercisesView extends StatefulWidget {
   final String selectedDateRange;
@@ -25,7 +25,11 @@ class FitnessExercisesView extends StatefulWidget {
 }
 
 class _FitnessExercisesViewState extends State<FitnessExercisesView> {
-  
+  final ExercisesBackendService _backendService = ExercisesBackendService();
+  String _selectedCategoryFilter = 'All';
+  String _searchQuery = '';
+  int _displayLimit = 5;
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
@@ -46,9 +50,19 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
   void _onExServiceUpdate() {
     if (mounted) setState(() {});
   }
-  final ExercisesBackendService _backendService = ExercisesBackendService();
-  String _selectedCategoryFilter = 'All';
-  String _searchQuery = '';
+
+  void _loadMoreExercises(int totalLength) {
+    if (_isLoadingMore || _displayLimit >= totalLength) return;
+    setState(() => _isLoadingMore = true);
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) {
+        setState(() {
+          _displayLimit = (_displayLimit + 5).clamp(0, totalLength);
+          _isLoadingMore = false;
+        });
+      }
+    });
+  }
 
   void _openAddCategorySheet() {
     showModalBottomSheet(
@@ -85,14 +99,10 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
   }
 
   void _openExerciseSlider(ExerciseModel exercise) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ExerciseDetailsSliderSheet(
-        exercise: exercise,
-        onUpdated: () => setState(() {}),
-      ),
+    ExerciseDetailModal.show(
+      context,
+      exercise,
+      () => setState(() {}),
     );
   }
 
@@ -128,161 +138,231 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
     }
 
     final exercises = _backendService.exercises.where((e) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          e.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          e.muscleGroup.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          e.categoryName.toLowerCase().contains(_searchQuery.toLowerCase());
+      final q = _searchQuery.toLowerCase().trim();
+      final matchesSearch = q.isEmpty ||
+          e.title.toLowerCase().contains(q) ||
+          e.name.toLowerCase().contains(q) ||
+          e.muscleGroup.toLowerCase().contains(q) ||
+          e.target.toLowerCase().contains(q) ||
+          e.equipment.toLowerCase().contains(q) ||
+          e.categoryName.toLowerCase().contains(q);
       final matchesCategory = _selectedCategoryFilter == 'All' ||
-          e.categoryId == _selectedCategoryFilter;
+          e.categoryId == _selectedCategoryFilter ||
+          e.categoryName.toLowerCase() == _selectedCategoryFilter.toLowerCase();
       return matchesSearch && matchesCategory;
     }).toList();
 
-    return FadeTransition(
-      opacity: fadeAnim,
-      child: SlideTransition(
-        position: slideAnim,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Action Bar
-            Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final visibleExercises = exercises.take(_displayLimit).toList();
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification scrollInfo) {
+        if (!_isLoadingMore &&
+            scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 400 &&
+            _displayLimit < exercises.length) {
+          _loadMoreExercises(exercises.length);
+        }
+        return false;
+      },
+      child: FadeTransition(
+        opacity: fadeAnim,
+        child: SlideTransition(
+          position: slideAnim,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Action Bar
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Exercises Directory',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.2),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'Categories, GIF animations & MP4 videos',
+                          style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Row(
                     children: [
-                      Text(
-                        'Exercises Directory',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.2),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF6366F1)),
+                          foregroundColor: const Color(0xFF6366F1),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: _openAddCategorySheet,
+                        icon: const Icon(Icons.add_photo_alternate_rounded, size: 15),
+                        label: const Text('+ Category', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                       ),
-                      Text(
-                        'Categories, GIF animations & MP4 videos',
-                        style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 6),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        onPressed: _openAddExerciseSheet,
+                        icon: const Icon(Icons.add_rounded, size: 16),
+                        label: const Text('Add Exercise', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF6366F1)),
-                        foregroundColor: const Color(0xFF6366F1),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: _openAddCategorySheet,
-                      icon: const Icon(Icons.add_photo_alternate_rounded, size: 15),
-                      label: const Text('+ Category', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-                    ),
-                    const SizedBox(width: 6),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
-                      ),
-                      onPressed: _openAddExerciseSheet,
-                      icon: const Icon(Icons.add_rounded, size: 16),
-                      label: const Text('Add Exercise', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // 1. CATEGORIES CARDS CAROUSEL (ABOVE EXERCISES)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Muscle Group Categories', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-                Text('Tap card to filter • Edit icon to manage', style: TextStyle(fontSize: 10, color: const Color(0xFF64748B).withOpacity(0.8))),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            SizedBox(
-              height: 100,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  // 'All Exercises' Card
-                  _buildAllCategoriesCard(),
-                  ...categoriesList.map((c) => _buildCategoryCard(c)),
                 ],
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(height: 14),
 
-            // Search Bar
-            Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+              // 1. CATEGORIES CARDS CAROUSEL (ABOVE EXERCISES)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Muscle Group Categories', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                  Text('Tap card to filter • Edit icon to manage', style: TextStyle(fontSize: 10, color: const Color(0xFF64748B).withValues(alpha: 0.8))),
+                ],
               ),
-              child: TextField(
-                onChanged: (v) => setState(() => _searchQuery = v),
-                decoration: const InputDecoration(
-                  hintText: 'Search movements, muscles (e.g. Incline Bench, Deadlift)...',
-                  hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 11),
+              const SizedBox(height: 8),
+
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    // 'All Exercises' Card
+                    _buildAllCategoriesCard(),
+                    ...categoriesList.map((c) => _buildCategoryCard(c)),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-            // Exercises Grid Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedCategoryFilter == 'All'
-                      ? 'All Exercises (${exercises.length})'
-                      : '${categoriesList.firstWhere((c) => c.categoryId == _selectedCategoryFilter, orElse: () => categoriesList.isNotEmpty ? categoriesList.first : ExerciseCategoryModel(categoryId: '', name: 'Selected')).name} (${exercises.length})',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+              // Search Bar
+              Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                if (_selectedCategoryFilter != 'All')
-                  GestureDetector(
-                    onTap: () => setState(() => _selectedCategoryFilter = 'All'),
-                    child: const Text('Clear Filter', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF6366F1))),
+                child: TextField(
+                  onChanged: (v) {
+                    setState(() {
+                      _searchQuery = v;
+                      _displayLimit = 5;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    hintText: 'Search movements, muscles (e.g. Incline Bench, Deadlift)...',
+                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                    prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 11),
                   ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // 2. EXERCISES GRID
-            if (exercises.isEmpty)
-              _buildEmptyState()
-            else
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.76,
                 ),
-                itemCount: exercises.length,
-                itemBuilder: (context, index) {
-                  final ex = exercises[index];
-                  return _buildExerciseCard(ex);
-                },
               ),
-          ],
+              const SizedBox(height: 16),
+
+              // Exercises Grid Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _selectedCategoryFilter == 'All'
+                        ? 'All Exercises (${visibleExercises.length} of ${exercises.length})'
+                        : '${categoriesList.firstWhere((c) => c.categoryId == _selectedCategoryFilter, orElse: () => categoriesList.isNotEmpty ? categoriesList.first : ExerciseCategoryModel(categoryId: '', name: 'Selected')).name} (${visibleExercises.length} of ${exercises.length})',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                  ),
+                  if (_selectedCategoryFilter != 'All')
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _selectedCategoryFilter = 'All';
+                        _displayLimit = 5;
+                      }),
+                      child: const Text('Clear Filter', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF6366F1))),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // 2. EXERCISES GRID
+              if (exercises.isEmpty)
+                _buildEmptyState()
+              else ...[
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.76,
+                  ),
+                  itemCount: visibleExercises.length,
+                  itemBuilder: (context, index) {
+                    final ex = visibleExercises[index];
+                    return RepaintBoundary(
+                      key: ValueKey(ex.exerciseId.isNotEmpty ? ex.exerciseId : ex.id),
+                      child: _buildExerciseCard(ex),
+                    );
+                  },
+                ),
+
+                // Progressive Lazy Loading Indicator & Load More
+                if (_displayLimit < exercises.length) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    alignment: Alignment.center,
+                    child: _isLoadingMore
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(color: Color(0xFF6366F1), strokeWidth: 2.5),
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Loading next 5 movements...',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: () => _loadMoreExercises(exercises.length),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF6366F1)),
+                              foregroundColor: const Color(0xFF6366F1),
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.expand_more_rounded, size: 18),
+                            label: Text(
+                              'Load Next 5 GIFs (Showing $_displayLimit of ${exercises.length})',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -333,10 +413,10 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
   }
 
   Widget _buildCategoryCard(ExerciseCategoryModel cat) {
-    final isSelected = _selectedCategoryFilter == cat.categoryId;
+    final isSelected = _selectedCategoryFilter == cat.categoryId || _selectedCategoryFilter.toLowerCase() == cat.name.toLowerCase();
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedCategoryFilter = cat.categoryId),
+      onTap: () => setState(() => _selectedCategoryFilter = cat.name),
       child: Container(
         width: 125,
         margin: const EdgeInsets.only(right: 10),
@@ -357,27 +437,13 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            // Background Image/Video from Cloudflare R2
-            Builder(builder: (context) {
-              final isVid = cat.imageUrl.toLowerCase().endsWith('.mp4') || cat.imageUrl.toLowerCase().endsWith('.mov') || cat.imageUrl.toLowerCase().endsWith('.webm');
-              if (isVid) {
-                return Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  color: const Color(0xFF0F172A),
-                  child: const Center(
-                    child: Icon(Icons.play_arrow_rounded, color: Color(0xFF38BDF8), size: 32),
-                  ),
-                );
-              }
-              return Image.network(
-                CategoryBackendService.getDisplayableImageUrl(cat.imageUrl),
-                width: double.infinity,
-                height: double.infinity,
+            // Background Image/Video
+            Positioned.fill(
+              child: ExerciseMediaWidget(
+                mediaUrl: cat.imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Container(color: const Color(0xFF1E293B)),
-              );
-            }),
+              ),
+            ),
             // Gradient Overlay
             Container(
               decoration: BoxDecoration(
@@ -404,7 +470,7 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                         decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(5)),
-                        child: Text('${cat.exerciseCount} Moves', style: const TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w800)),
+                        child: Text('${cat.exerciseCount > 0 ? cat.exerciseCount : 'Active'} Moves', style: const TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w800)),
                       ),
                       // Edit Icon Trigger
                       GestureDetector(
@@ -477,26 +543,11 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
                       color: Color(0xFF0F172A),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Builder(builder: (context) {
-                      final isVid = ex.mediaUrl.toLowerCase().endsWith('.mp4') || ex.mediaUrl.toLowerCase().endsWith('.mov') || ex.mediaUrl.toLowerCase().endsWith('.webm');
-                      if (isVid) {
-                        return Container(
-                          width: double.infinity,
-                          height: double.infinity,
-                          color: const Color(0xFF0F172A),
-                          child: const Center(
-                            child: Icon(Icons.play_arrow_rounded, color: Color(0xFF38BDF8), size: 32),
-                          ),
-                        );
-                      }
-                      return Image.network(
-                        CategoryBackendService.getDisplayableImageUrl(ex.mediaUrl),
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => const Center(
-                          child: Icon(Icons.fitness_center_rounded, size: 32, color: Color(0xFF6366F1)),
-                        ),
-                      );
-                    }),
+                    child: ExerciseMediaWidget(
+                      mediaUrl: ex.displayMediaUrl,
+                      fallbackUrl: ex.displayThumbnailUrl,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   Positioned(
                     top: 6,
@@ -544,11 +595,28 @@ class _FitnessExercisesViewState extends State<FitnessExercisesView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    ex.muscleGroup,
-                    style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          ex.target.isNotEmpty ? ex.target : ex.muscleGroup,
+                          style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4)),
+                        child: Text(
+                          ex.equipment,
+                          style: const TextStyle(fontSize: 8.5, color: Color(0xFF475569), fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

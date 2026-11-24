@@ -1440,16 +1440,15 @@ class _AddOrEditWorkoutSectionModalState extends State<_AddOrEditWorkoutSectionM
   Widget build(BuildContext context) {
     final isEdit = widget.sectionToEdit != null;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Material(
+      color: Colors.white,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.88,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1599,8 +1598,9 @@ class _AddOrEditWorkoutSectionModalState extends State<_AddOrEditWorkoutSectionM
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 // ----------------------------------------------------------------------

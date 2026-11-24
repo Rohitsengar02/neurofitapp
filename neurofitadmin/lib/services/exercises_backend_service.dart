@@ -66,14 +66,27 @@ class ExerciseModel {
   String exerciseId;
   String id;
   String title;
+  String name;
   String categoryId;
   String categoryName;
+  String bodyPart;
+  String muscleGroup;
+  String target;
+  List<String> secondaryMuscles;
+  String equipment;
+  String difficulty; // 'Beginner', 'Intermediate', 'Advanced'
+  int sets;
+  String reps;
   String mediaType; // 'gif', 'video', 'image'
   String mediaUrl;
-  String muscleGroup;
-  String difficulty; // 'Beginner', 'Intermediate', 'Advanced'
-  String equipment;
+  String imageUrl;
+  String gifUrl;
+  String mediaId;
+  String mediaKey;
   String instructions;
+  List<String> instructionSteps;
+  String instructionText;
+  String tips;
   String status;
   bool isActive;
   final DateTime createdAt;
@@ -83,39 +96,65 @@ class ExerciseModel {
     required this.exerciseId,
     String? id,
     required this.title,
+    String? name,
     required this.categoryId,
     required this.categoryName,
+    this.bodyPart = 'General',
+    this.muscleGroup = 'Full Body',
+    this.target = '',
+    this.secondaryMuscles = const [],
+    this.equipment = 'Bodyweight',
+    this.difficulty = 'Intermediate',
+    this.sets = 3,
+    this.reps = '10-12 reps',
     this.mediaType = 'gif',
     required this.mediaUrl,
-    this.muscleGroup = 'Full Body',
-    this.difficulty = 'Intermediate',
-    this.equipment = 'Bodyweight',
+    this.imageUrl = '',
+    this.gifUrl = '',
+    this.mediaId = '',
+    this.mediaKey = '',
     this.instructions = '',
+    this.instructionSteps = const [],
+    this.instructionText = '',
+    this.tips = '',
     this.status = 'Active',
     this.isActive = true,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : id = id ?? exerciseId,
+        name = name ?? title,
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
   factory ExerciseModel.fromJson(Map<String, dynamic> json) {
-    final rawUrl = json['mediaUrl'] ?? json['imageUrl'] ?? json['gifUrl'] ?? json['videoUrl'] ?? '';
-    String mType = json['mediaType'] ?? 'image';
-    if (mType == 'image' && rawUrl.isNotEmpty) {
-      final lower = rawUrl.toLowerCase();
-      if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm')) {
-        mType = 'video';
-      } else if (lower.endsWith('.gif')) {
-        mType = 'gif';
-      }
+    final rawUrl = (json['mediaUrl'] ?? json['gifUrl'] ?? json['imageUrl'] ?? json['videoUrl'] ?? '').toString();
+    final img = (json['imageUrl'] ?? json['image'] ?? '').toString();
+    final gif = (json['gifUrl'] ?? json['gif_url'] ?? '').toString();
+
+    String mType = (json['mediaType'] ?? 'image').toString();
+    if (gif.isNotEmpty || rawUrl.toLowerCase().endsWith('.gif')) {
+      mType = 'gif';
+    } else if (rawUrl.toLowerCase().endsWith('.mp4') || rawUrl.toLowerCase().endsWith('.mov') || rawUrl.toLowerCase().endsWith('.webm')) {
+      mType = 'video';
     }
 
+    List<String> steps = [];
     String inst = '';
     if (json['instructions'] is List) {
-      inst = (json['instructions'] as List).join('\n');
+      steps = (json['instructions'] as List).map((e) => e.toString()).toList();
+      inst = steps.join('\n');
     } else if (json['instructions'] != null) {
       inst = json['instructions'].toString();
+      steps = inst.split('\n').where((s) => s.trim().isNotEmpty).toList();
+    }
+
+    if (json['instructionSteps'] is List) {
+      steps = (json['instructionSteps'] as List).map((e) => e.toString()).toList();
+    }
+
+    List<String> secMuscles = [];
+    if (json['secondaryMuscles'] is List) {
+      secMuscles = (json['secondaryMuscles'] as List).map((e) => e.toString()).toList();
     }
 
     final idVal = (json['id'] ?? json['exerciseId'] ?? json['_id'] ?? '').toString();
@@ -125,14 +164,27 @@ class ExerciseModel {
       exerciseId: idVal,
       id: idVal,
       title: titleVal,
+      name: (json['name'] ?? titleVal).toString(),
       categoryId: (json['categoryId'] ?? '').toString(),
-      categoryName: (json['categoryName'] ?? json['category'] ?? 'General').toString(),
-      mediaType: mType,
-      mediaUrl: rawUrl.toString(),
-      muscleGroup: (json['muscleGroup'] ?? 'Full Body').toString(),
-      difficulty: (json['difficulty'] ?? 'Intermediate').toString(),
+      categoryName: (json['categoryName'] ?? json['category'] ?? json['bodyPart'] ?? 'General').toString(),
+      bodyPart: (json['bodyPart'] ?? json['body_part'] ?? 'General').toString(),
+      muscleGroup: (json['muscleGroup'] ?? json['muscle_group'] ?? json['target'] ?? 'Full Body').toString(),
+      target: (json['target'] ?? '').toString(),
+      secondaryMuscles: secMuscles,
       equipment: (json['equipment'] ?? 'Bodyweight').toString(),
+      difficulty: (json['difficulty'] ?? 'Intermediate').toString(),
+      sets: json['sets'] is int ? json['sets'] : (int.tryParse(json['sets']?.toString() ?? '3') ?? 3),
+      reps: (json['reps'] ?? '10-12 reps').toString(),
+      mediaType: mType,
+      mediaUrl: rawUrl.isNotEmpty ? rawUrl : (gif.isNotEmpty ? gif : img),
+      imageUrl: img,
+      gifUrl: gif,
+      mediaId: (json['mediaId'] ?? json['media_id'] ?? '').toString(),
+      mediaKey: (json['mediaKey'] ?? '').toString(),
       instructions: inst,
+      instructionSteps: steps,
+      instructionText: (json['instructionText'] ?? inst).toString(),
+      tips: (json['tips'] ?? '').toString(),
       status: json['isActive'] == false ? 'Inactive' : 'Active',
       isActive: json['isActive'] ?? true,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
@@ -145,16 +197,27 @@ class ExerciseModel {
       'id': id.isNotEmpty ? id : exerciseId,
       'exerciseId': exerciseId.isNotEmpty ? exerciseId : id,
       'title': title,
+      'name': name.isNotEmpty ? name : title,
       'categoryId': categoryId,
       'categoryName': categoryName,
       'category': categoryName,
+      'bodyPart': bodyPart,
+      'muscleGroup': muscleGroup,
+      'target': target,
+      'secondaryMuscles': secondaryMuscles,
+      'equipment': equipment,
+      'difficulty': difficulty,
+      'sets': sets,
+      'reps': reps,
       'mediaType': mediaType,
       'mediaUrl': mediaUrl,
-      'imageUrl': mediaUrl,
-      'muscleGroup': muscleGroup,
-      'difficulty': difficulty,
-      'equipment': equipment,
-      'instructions': instructions,
+      'imageUrl': imageUrl.isNotEmpty ? imageUrl : mediaUrl,
+      'gifUrl': gifUrl,
+      'mediaId': mediaId,
+      'mediaKey': mediaKey,
+      'instructions': instructionSteps.isNotEmpty ? instructionSteps : instructions.split('\n'),
+      'instructionText': instructionText.isNotEmpty ? instructionText : instructions,
+      'tips': tips,
       'status': status,
       'isActive': isActive,
     };
@@ -162,6 +225,22 @@ class ExerciseModel {
 
   Map<String, dynamic> toFirestoreFields() => toJson();
   factory ExerciseModel.fromFirestoreDoc(Map<String, dynamic> doc) => ExerciseModel.fromJson(doc);
+
+  /// Helper to get the best media asset / URL path
+  String get displayMediaUrl {
+    if (gifUrl.isNotEmpty) return gifUrl;
+    if (mediaUrl.isNotEmpty) return mediaUrl;
+    if (imageUrl.isNotEmpty) return imageUrl;
+    return '';
+  }
+
+  /// Helper to get the static image thumbnail
+  String get displayThumbnailUrl {
+    if (imageUrl.isNotEmpty) return imageUrl;
+    if (mediaUrl.isNotEmpty && !mediaUrl.endsWith('.gif')) return mediaUrl;
+    if (gifUrl.isNotEmpty) return gifUrl;
+    return '';
+  }
 }
 
 class ExercisesBackendService extends ChangeNotifier {

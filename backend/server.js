@@ -25,8 +25,9 @@ const path = require('path');
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/exercises', express.static(path.join(__dirname, 'public/exercises')));
+app.use('/assets/exercises', express.static(path.join(__dirname, 'public/exercises')));
 
 // Live Request Logger Middleware
 app.use((req, res, next) => {
@@ -86,6 +87,10 @@ app.use('/api/exercises', require('./routes/exerciseRoutes'));
 app.use('/api/workout-categories', require('./routes/workoutCategoryRoutes'));
 app.use('/api/workout-banners', require('./routes/workoutBannerRoutes'));
 app.use('/api/exercise-categories', require('./routes/exerciseCategoryRoutes'));
+app.use('/api/foods', require('./routes/foodRoutes'));
+app.use('/api/recipes', require('./routes/recipeRoutes'));
+app.use('/api/user-workouts', require('./routes/userWorkoutRoutes'));
+app.use('/api/user-nutrition', require('./routes/userNutritionRoutes'));
 
 app.get('/', (req, res) => {
   res.send('⚡ NeuroFit Real-Time Express + Socket.io Backend API with MongoDB Atlas is Live!');

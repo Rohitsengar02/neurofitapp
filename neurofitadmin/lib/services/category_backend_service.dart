@@ -224,7 +224,25 @@ class CategoryBackendService extends ChangeNotifier {
 
     final trimmed = url.trim();
 
-    // 2. Handle Cloudflare R2 images & local upload filenames:
+    // 2. Handle local/backend exercise assets & videos/gifs
+    if (trimmed.startsWith('assets/exercises') ||
+        trimmed.startsWith('/assets/exercises') ||
+        trimmed.startsWith('exercises/') ||
+        trimmed.startsWith('/exercises/')) {
+      final clean = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+      return '${ApiConstants.baseUrl}/$clean';
+    }
+
+    if (trimmed.endsWith('.gif') && !trimmed.startsWith('http')) {
+      return '${ApiConstants.baseUrl}/assets/exercises/videos/$trimmed';
+    }
+    if ((trimmed.endsWith('.jpg') || trimmed.endsWith('.png') || trimmed.endsWith('.webp')) &&
+        !trimmed.startsWith('http') &&
+        !trimmed.contains('/')) {
+      return '${ApiConstants.baseUrl}/assets/exercises/images/$trimmed';
+    }
+
+    // 3. Handle Cloudflare R2 images & local upload filenames:
     if (trimmed.contains('r2.dev') ||
         trimmed.contains('/uploads/') ||
         trimmed.contains('scaled_') ||
@@ -236,7 +254,7 @@ class CategoryBackendService extends ChangeNotifier {
       return '${ApiConstants.apiBaseUrl}/media/proxy?url=${Uri.encodeComponent(trimmed)}';
     }
 
-    // 3. For Unsplash, Pexels, or standard external CDN image URLs, return directly
+    // 4. For Unsplash, Pexels, or standard external CDN image URLs, return directly
     return trimmed;
   }
 

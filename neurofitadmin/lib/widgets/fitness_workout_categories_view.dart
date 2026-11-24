@@ -768,16 +768,15 @@ class _AddOrEditWorkoutCategoryModalState extends State<_AddOrEditWorkoutCategor
   Widget build(BuildContext context) {
     final isEdit = widget.categoryToEdit != null;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Material(
+      color: Colors.white,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.88,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1009,8 +1008,9 @@ class _AddOrEditWorkoutCategoryModalState extends State<_AddOrEditWorkoutCategor
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildMediaTypeOption(String typeKey, String label, IconData icon, Color color) {
     final isSelected = _selectedMediaType == typeKey;
